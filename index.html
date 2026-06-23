@@ -286,6 +286,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Malgun Gothic','Apple SD Goth
     <div class="topbar-user"><i class="fa fa-user-circle"></i><span id="topUser">사용자</span></div>
     <button class="btn" onclick="exportExcel()"><i class="fa fa-download"></i><span>내보내기</span></button>
     <button class="btn green" onclick="openAddModal()"><i class="fa fa-plus"></i><span>품목 추가</span></button>
+    <button class="btn" onclick="openSettings()" title="명칭 관리"><i class="fa fa-cog"></i></button>
     <button class="btn" onclick="doLogout()" title="로그아웃"><i class="fa fa-sign-out-alt"></i></button>
   </div>
 </div>
@@ -474,6 +475,48 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Malgun Gothic','Apple SD Goth
       <button class="btn green" onclick="saveNewItem()"><i class="fa fa-check"></i> 저장</button>
     </div>
   </div>
+
+<!-- 설정 모달 -->
+<div class="modal-bg" id="settingsModal">
+  <div class="modal" style="width:480px;max-height:80vh;overflow-y:auto">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+      <h3><i class="fa fa-cog" style="color:var(--green);margin-right:6px"></i>명칭 관리</h3>
+      <button class="btn" onclick="closeSettings()"><i class="fa fa-times"></i></button>
+    </div>
+
+    <!-- 탭 -->
+    <div style="display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:14px">
+      <div class="stab active" id="stab-maker" onclick="switchStab('maker')" style="padding:6px 14px;font-size:12px;cursor:pointer;border-bottom:2px solid var(--green);color:var(--green);font-weight:600">메이커 명칭</div>
+      <div class="stab" id="stab-cat" onclick="switchStab('cat')" style="padding:6px 14px;font-size:12px;cursor:pointer;border-bottom:2px solid transparent;color:var(--text3)">대분류 명칭</div>
+    </div>
+
+    <!-- 메이커 탭 -->
+    <div id="stab-maker-pane">
+      <div style="display:flex;gap:6px;margin-bottom:10px">
+        <input id="searchMaker" type="text" placeholder="메이커 검색…" class="modal-input" style="flex:1;height:30px;font-size:12px" oninput="renderMakerList()">
+      </div>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:8px">원래 이름 → 표시 이름으로 변경. 변경 후 저장하면 전체 앱에 반영됩니다.</div>
+      <div id="makerEditList" style="display:flex;flex-direction:column;gap:4px;max-height:350px;overflow-y:auto"></div>
+      <div style="display:flex;gap:6px;margin-top:12px;padding-top:10px;border-top:1px solid var(--border)">
+        <input id="newMakerOrig" class="modal-input" placeholder="원래 메이커명" style="flex:1;height:30px;font-size:12px">
+        <input id="newMakerAlias" class="modal-input" placeholder="표시할 이름" style="flex:1;height:30px;font-size:12px">
+        <button class="btn green" onclick="addMakerAlias()" style="padding:4px 10px;font-size:12px">추가</button>
+      </div>
+    </div>
+
+    <!-- 대분류 탭 -->
+    <div id="stab-cat-pane" style="display:none">
+      <div style="font-size:11px;color:var(--text3);margin-bottom:8px">대분류 표시 이름을 변경합니다. 필터 기능은 원래 이름 기준으로 동작합니다.</div>
+      <div id="catEditList" style="display:flex;flex-direction:column;gap:4px"></div>
+    </div>
+
+    <div class="modal-actions" style="margin-top:14px">
+      <button class="btn" onclick="resetAliases()"><i class="fa fa-rotate-left"></i> 초기화</button>
+      <button class="btn green" onclick="saveAndApplyAliases()"><i class="fa fa-check"></i> 저장 및 적용</button>
+    </div>
+  </div>
+</div>
+
 </div>
 
 <script>
@@ -487,7 +530,8 @@ const LS = {
   photo: 'jf_photo_v2',
   draw: 'jf_draw_v2',
   added: 'jf_added_v2',
-  login: 'jf_session'
+  login: 'jf_session',
+  alias: 'jf_alias_v2'
 };
 
 // ── 인증 ───────────────────────────────────────────────
@@ -520,7 +564,8 @@ window.addEventListener('DOMContentLoaded',()=>{
 });
 
 // ── 로컬 저장소 로드 ───────────────────────────────────
-let tierStore={}, memoStore={}, photoStore={}, drawStore={};
+let tierStore={}, memoStore={}, photoStore={}, drawStore={}, aliasStore={};
+// aliasStore: { makers: {'HANGZHOU RET':'항저우 RET',...}, cats: {'BLIND RIVET':'블라인드 리벳',...} }
 const DEFAULT_TIERS=[
   {label:'100개 단위',dist:'',end:''},
   {label:'1박스 단위',dist:'',end:''},
@@ -531,6 +576,7 @@ function loadUserData(){
   try{ memoStore = JSON.parse(localStorage.getItem(LS.memo)||'{}'); }catch(e){}
   try{ photoStore = JSON.parse(localStorage.getItem(LS.photo)||'{}'); }catch(e){}
   try{ drawStore = JSON.parse(localStorage.getItem(LS.draw)||'{}'); }catch(e){}
+  try{ aliasStore = JSON.parse(localStorage.getItem(LS.alias)||'{}'); }catch(e){}
   // 추가된 품목 병합
   try{
     const added = JSON.parse(localStorage.getItem(LS.added)||'[]');
@@ -551,6 +597,16 @@ function catBadge(cat){
   const s=cat.length>12?cat.slice(0,11)+'…':cat;
   return`<span class="cat-badge ${cls}">${s}</span>`;
 }
+
+// ── Alias 헬퍼 ─────────────────────────────────────────
+function getMakerAlias(name){ return (aliasStore.makers||{})[name] || name; }
+function getCatAlias(name){ return (aliasStore.cats||{})[name] || name; }
+function getOrigMaker(alias){
+  const m = aliasStore.makers||{};
+  const found = Object.keys(m).find(k=>m[k]===alias);
+  return found || alias;
+}
+
 function fmt(n){
   if(n==null||n===''||isNaN(n)) return'—';
   n=parseFloat(n);
@@ -585,7 +641,7 @@ function render(){
   const banner=document.getElementById('makerBanner');
   if(state.maker){
     banner.classList.add('show');
-    document.getElementById('bannerName').textContent=state.maker;
+    document.getElementById('bannerName').textContent=getMakerAlias(state.maker);
     document.getElementById('bannerCnt').textContent=curList.length+'개 품목';
   } else banner.classList.remove('show');
   if(!curList.length){
@@ -617,10 +673,10 @@ function renderMore(){
   <div class="card-pn">${p.pn}</div>
   <div class="card-name">${p.name||''}</div>
   <div class="card-prices">
-    <div class="cprice"><div class="cprice-label">${am?state.maker+' 단가':'최저 매입가'}</div>
+    <div class="cprice"><div class="cprice-label">${am?getMakerAlias(state.maker)+' 단가':'최저 매입가'}</div>
     <div class="cprice-val best">${fmt(am?am.p:best)}</div></div>
   </div>
-  <div class="multi-tag">${p.makers.sort((a,b)=>a.p-b.p).map(m=>m.m).slice(0,3).join(' · ')}${p.makers.length>3?` 외 ${p.makers.length-3}개`:''}</div>
+  <div class="multi-tag">${p.makers.sort((a,b)=>a.p-b.p).map(m=>getMakerAlias(m.m)).slice(0,3).join(' · ')}${p.makers.length>3?` 외 ${p.makers.length-3}개`:''}</div>
 </div>`;
       g.appendChild(el);
     });
@@ -637,10 +693,10 @@ function renderMore(){
 <div class="list-info">
   <div class="list-pn">${p.pn}</div>
   <div class="list-name">${p.name||''}</div>
-  <div class="list-cat">${p.cat} · ${p.makers.sort((a,b)=>a.p-b.p).map(m=>m.m).slice(0,3).join(' · ')}${p.makers.length>3?` 외 ${p.makers.length-3}개`:''}</div>
+  <div class="list-cat">${p.cat} · ${p.makers.sort((a,b)=>a.p-b.p).map(m=>getMakerAlias(m.m)).slice(0,3).join(' · ')}${p.makers.length>3?` 외 ${p.makers.length-3}개`:''}</div>
 </div>
 <div class="list-prices">
-  <div class="cprice"><div class="cprice-label">${am?state.maker:'최저 매입가'}</div>
+  <div class="cprice"><div class="cprice-label">${am?getMakerAlias(state.maker):'최저 매입가'}</div>
   <div class="cprice-val best">${fmt(am?am.p:best)}</div></div>
 </div>`;
       l.appendChild(el);
@@ -675,7 +731,7 @@ function selectProduct(pn){
   window._bestPrice = sorted.length ? sorted[0].p : 0;
   document.getElementById('dMpList').innerHTML=sorted.map((m,i)=>`
     <div class="mp-row${i===0?' best':''}${am&&m.m===am?' hl':''}">
-      <div class="mp-maker">${m.m}${i===0?'<span class="badge badge-best">최저</span>':''}${m.u?'<span class="badge badge-upd">업데이트</span>':''}</div>
+      <div class="mp-maker">${getMakerAlias(m.m)}${i===0?'<span class="badge badge-best">최저</span>':''}${m.u?'<span class="badge badge-upd">업데이트</span>':''}</div>
       <div class="mp-date">${m.d}</div>
       <div class="mp-price">${fmt(m.p)}</div>
     </div>`).join('');
@@ -913,6 +969,132 @@ function saveNewItem(){
   render();
   alert(`품목 "${pn}"이 추가되었습니다.`);
 }
+
+// ── 설정 (명칭 관리) ─────────────────────────────────────
+function openSettings(){
+  document.getElementById('settingsModal').classList.add('open');
+  switchStab('maker');
+}
+function closeSettings(){ document.getElementById('settingsModal').classList.remove('open'); }
+
+function switchStab(tab){
+  ['maker','cat'].forEach(t=>{
+    const el = document.getElementById('stab-'+t);
+    if(!el) return;
+    const active = t===tab;
+    el.style.borderBottomColor = active?'var(--green)':'transparent';
+    el.style.color = active?'var(--green)':'var(--text3)';
+    el.style.fontWeight = active?'600':'400';
+  });
+  document.getElementById('stab-maker-pane').style.display = tab==='maker'?'':'none';
+  document.getElementById('stab-cat-pane').style.display  = tab==='cat'  ?'':'none';
+  if(tab==='maker') renderMakerList();
+  if(tab==='cat')   renderCatList();
+}
+
+function getAllMakers(){
+  const set=new Set(ALL_PRODUCTS.flatMap(p=>p.makers.map(m=>m.m)));
+  return [...set].sort();
+}
+
+function renderMakerList(){
+  const q=(document.getElementById('searchMaker')?.value||'').toLowerCase();
+  const makers=getAllMakers().filter(m=>!q||m.toLowerCase().includes(q)||getMakerAlias(m).toLowerCase().includes(q));
+  const list=document.getElementById('makerEditList');
+  if(!list) return;
+  const aliases=aliasStore.makers||{};
+  list.innerHTML=makers.map(orig=>{
+    const alias=aliases[orig]||'';
+    const changed=alias&&alias!==orig;
+    return `<div style="display:flex;align-items:center;gap:6px;padding:5px 6px;background:${changed?'var(--green-light)':'var(--bg3)'};border-radius:var(--radius);border:1px solid ${changed?'#9FE1CB':'transparent'}">
+      <span style="flex:1.2;font-size:11px;font-family:monospace;color:var(--text2);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${orig}">${orig}</span>
+      <span style="font-size:11px;color:var(--text3);flex-shrink:0">→</span>
+      <input type="text" value="${alias}" placeholder="표시 이름 (비우면 원래 이름)"
+        style="flex:1.2;height:28px;border:1px solid var(--border2);border-radius:var(--radius);padding:0 8px;font-size:12px;background:#fff;outline:none;min-width:0"
+        oninput="onAliasInput(this,'maker','${orig.replace(/\\/g,'\\\\').replace(/'/g,"\\'")}')">
+      ${changed?`<button onclick="clearAlias('maker','${orig.replace(/\\/g,'\\\\').replace(/'/g,"\\'")}',this)" title="초기화" style="border:none;background:none;color:var(--text3);cursor:pointer;font-size:12px;flex-shrink:0"><i class='fa fa-rotate-left'></i></button>`:''}
+    </div>`;
+  }).join('')||'<div style="text-align:center;color:var(--text3);padding:20px;font-size:12px">검색 결과 없음</div>';
+}
+
+function renderCatList(){
+  const cats=[...new Set(ALL_PRODUCTS.map(p=>p.cat))].sort();
+  const list=document.getElementById('catEditList');
+  if(!list) return;
+  const aliases=aliasStore.cats||{};
+  list.innerHTML=cats.map(orig=>{
+    const alias=aliases[orig]||'';
+    const changed=alias&&alias!==orig;
+    return `<div style="display:flex;align-items:center;gap:6px;padding:5px 6px;background:${changed?'var(--green-light)':'var(--bg3)'};border-radius:var(--radius);border:1px solid ${changed?'#9FE1CB':'transparent'}">
+      <span style="flex:1;font-size:12px;color:var(--text2)">${orig}</span>
+      <span style="font-size:11px;color:var(--text3)">→</span>
+      <input type="text" value="${alias}" placeholder="표시 이름"
+        style="flex:1;height:28px;border:1px solid var(--border2);border-radius:var(--radius);padding:0 8px;font-size:12px;background:#fff;outline:none"
+        oninput="onAliasInput(this,'cat','${orig.replace(/'/g,"\\'")}')">
+      ${changed?`<button onclick="clearAlias('cat','${orig.replace(/'/g,"\\'")}',this)" title="초기화" style="border:none;background:none;color:var(--text3);cursor:pointer;font-size:12px"><i class='fa fa-rotate-left'></i></button>`:''}
+    </div>`;
+  }).join('');
+}
+
+function onAliasInput(el,type,orig){
+  if(!aliasStore[type+'s']) aliasStore[type+'s']={};
+  const val=el.value.trim();
+  if(val&&val!==orig) aliasStore[type+'s'][orig]=val;
+  else delete aliasStore[type+'s'][orig];
+  const row=el.parentElement;
+  const changed=val&&val!==orig;
+  row.style.background=changed?'var(--green-light)':'var(--bg3)';
+  row.style.borderColor=changed?'#9FE1CB':'transparent';
+}
+
+function clearAlias(type,orig,btn){
+  if(!aliasStore[type+'s']) return;
+  delete aliasStore[type+'s'][orig];
+  const row=btn.parentElement;
+  const input=row.querySelector('input');
+  if(input) input.value='';
+  row.style.background='var(--bg3)';
+  row.style.borderColor='transparent';
+  btn.remove();
+}
+
+function addMakerAlias(){
+  const orig=document.getElementById('newMakerOrig').value.trim();
+  const alias=document.getElementById('newMakerAlias').value.trim();
+  if(!orig){alert('원래 메이커명을 입력하세요.');return;}
+  if(!aliasStore.makers) aliasStore.makers={};
+  aliasStore.makers[orig]=alias||orig;
+  document.getElementById('newMakerOrig').value='';
+  document.getElementById('newMakerAlias').value='';
+  renderMakerList();
+}
+
+function saveAndApplyAliases(){
+  save(LS.alias,aliasStore);
+  // 사이드바 메이커 버튼 텍스트 업데이트
+  document.querySelectorAll('[data-maker]').forEach(btn=>{
+    const orig=btn.getAttribute('data-maker');
+    const icon=btn.querySelector('i');
+    btn.textContent=getMakerAlias(orig);
+    if(icon) btn.prepend(icon);
+  });
+  closeSettings();
+  render();
+  if(state.selectedPn) selectProduct(state.selectedPn);
+}
+
+function resetAliases(){
+  if(!confirm('모든 명칭 변경을 초기화하시겠습니까?')) return;
+  aliasStore={makers:{},cats:{}};
+  save(LS.alias,aliasStore);
+  renderMakerList();
+  renderCatList();
+}
+
+document.addEventListener('DOMContentLoaded',()=>{
+  const sm=document.getElementById('settingsModal');
+  if(sm) sm.addEventListener('click',function(e){if(e.target===this)closeSettings();});
+});
 
 // ── 내보내기 ───────────────────────────────────────────
 function exportExcel(){
