@@ -600,7 +600,7 @@ window.addEventListener('DOMContentLoaded',()=>{
 });
 
 // ── 로컬 저장소 로드 ───────────────────────────────────
-let tierStore={}, memoStore={}, photoStore={}, drawStore={}, aliasStore={};
+let tierStore={}, memoStore={}, photoStore={}, drawStore={}, aliasStore={}, specStore={};
 // aliasStore: { makers: {'HANGZHOU RET':'항저우 RET',...}, cats: {'BLIND RIVET':'블라인드 리벳',...} }
 const DEFAULT_TIERS=[
   {label:'100개 단위',dist:'',end:''},
@@ -615,6 +615,7 @@ function loadUserData(){
   try{ aliasStore = JSON.parse(localStorage.getItem(LS.alias)||'{}'); }catch(e){}
   loadPriceEdits();
   loadLabels();
+  try{ specStore=JSON.parse(localStorage.getItem(LS.spec)||'{}'); }catch(e){}
   // 추가된 품목 병합
   try{
     const added = JSON.parse(localStorage.getItem(LS.added)||'[]');
@@ -755,13 +756,8 @@ function selectProduct(pn){
   document.getElementById('dName').textContent=p.name||'';
   document.getElementById('dCat').textContent=p.cat;
 
-  // 사양
-  const specs=[['품번',p.pn],['품명',p.name||'—'],['분류',p.cat]];
-  const dim=p.pn.match(/(\d{2,4})$/);
-  if(dim) specs.push(['참고 치수',dim[1]+'mm']);
-  const upd=p.makers.filter(m=>m.u);
-  if(upd.length) specs.push(['최신 입고일',upd.sort((a,b)=>b.d.localeCompare(a.d))[0].d]);
-  document.getElementById('dSpecTbl').innerHTML=specs.map(([k,v])=>`<tr><td>${k}</td><td>${v}</td></tr>`).join('');
+  // 사양 테이블 렌더
+  renderSpecTable(p);
 
   // 메이커별 단가
   const sorted=[...p.makers].sort((a,b)=>a.p-b.p);
@@ -1005,6 +1001,79 @@ function saveNewItem(){
   render();
   alert(`품목 "${pn}"이 추가되었습니다.`);
 }
+
+// ── 사양 테이블 렌더 (편집 가능) ─────────────────────
+function renderSpecTable(p){
+  const stored = specStore[p.pn] || {};
+  const dim = p.pn.match(/(\d{2,4})$/);
+  const defaultDim = dim ? dim[1]+'mm' : '';
+  const upd = p.makers.filter(m=>m.u);
+  const latestDate = upd.length ? upd.sort((a,b)=>b.d.localeCompare(a.d))[0].d : '';
+
+  // 편집 가능 항목 (저장된 값 우선, 없으면 기본값)
+  const editableFields = [
+    { key:'spec_dim',    label:'참고 치수',  val: stored.spec_dim    ?? defaultDim,  placeholder:'예) 0511mm, M4×11' },
+    { key:'spec_mat',    label:'재질',       val: stored.spec_mat    ?? '',           placeholder:'예) 알루미늄, SUS304' },
+    { key:'spec_head',   label:'헤드 타입',  val: stored.spec_head   ?? '',           placeholder:'예) 플랜지, 소형, 대형' },
+    { key:'spec_grip',   label:'그립 범위',  val: stored.spec_grip   ?? '',           placeholder:'예) 1.5~4.5mm' },
+    { key:'spec_drill',  label:'드릴 사이즈',val: stored.spec_drill  ?? '',           placeholder:'예) 6.4mm' },
+    { key:'spec_thread', label:'나사 규격',  val: stored.spec_thread ?? '',           placeholder:'예) M4, M6, 1/4-20' },
+    { key:'spec_note',   label:'비고',       val: stored.spec_note   ?? '',           placeholder:'기타 사양 입력' },
+  ];
+
+  const tbl = document.getElementById('dSpecTbl');
+  if(!tbl) return;
+
+  // 고정 행 (수정 불가)
+  const fixedRows = [
+    ['품번', `<span style="font-family:monospace">${p.pn}</span>`],
+    ['품명', p.name||'—'],
+    ['분류', p.cat],
+  ];
+  if(latestDate) fixedRows.push(['최신 입고일', latestDate]);
+
+  const fixedHtml = fixedRows.map(([k,v])=>`
+    <tr>
+      <td style="color:var(--text3);width:44%;padding:6px 2px;font-size:12px">${k}</td>
+      <td style="font-weight:500;text-align:right;padding:6px 2px;font-size:12px">${v}</td>
+    </tr>`).join('');
+
+  // 편집 가능 행
+  const editHtml = editableFields.map(f=>`
+    <tr data-spec-key="${f.key}">
+      <td style="color:var(--text3);width:44%;padding:4px 2px;font-size:12px">${f.label}</td>
+      <td style="padding:4px 2px;font-size:12px">
+        <input type="text" value="${(f.val||'').replace(/"/g,'&quot;')}"
+          placeholder="${f.placeholder}"
+          data-spec-key="${f.key}"
+          style="width:100%;border:none;border-bottom:1px dashed ${f.val?'var(--green)':'#ddd'};
+            background:transparent;text-align:right;font-size:12px;font-weight:${f.val?'500':'400'};
+            color:${f.val?'var(--text)':'var(--text3)'};outline:none;padding:1px 0;
+            font-family:inherit">
+      </td>
+    </tr>`).join('');
+
+  tbl.innerHTML = fixedHtml + editHtml;
+
+  // 이벤트 위임 - 입력 즉시 저장
+  tbl.oninput = e => {
+    const inp = e.target.closest('input[data-spec-key]');
+    if(!inp) return;
+    const key = inp.dataset.specKey;
+    if(!specStore[p.pn]) specStore[p.pn] = {};
+    const v = inp.value.trim();
+    specStore[p.pn][key] = v;
+    save(LS.spec, specStore);
+    // 스타일 업데이트
+    inp.style.borderBottomColor = v ? 'var(--green)' : '#ddd';
+    inp.style.fontWeight = v ? '500' : '400';
+    inp.style.color = v ? 'var(--text)' : 'var(--text3)';
+  };
+  tbl.onkeydown = e => {
+    if(e.key==='Enter') e.target.blur();
+  };
+}
+
 
 // ── 메이커별 단가 목록 렌더 ──────────────────────────
 function renderMpList(sorted, am){
