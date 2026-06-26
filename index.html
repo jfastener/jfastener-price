@@ -415,7 +415,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Malgun Gothic','Apple SD Goth
           <div class="mp-list" id="dMpList"></div>
           <div class="sec-title" style="margin-top:16px">판매단가 (수량별)</div>
           <table class="tier-tbl" id="tierTbl">
-            <thead><tr><th>수량 단위</th><th>유통단가</th><th>엔드유저가</th><th style="width:52px;text-align:center">마진율</th><th style="width:28px"></th></tr></thead>
+            <thead><tr><th>수량 단위</th><th>유통단가</th><th>유통마진</th><th>엔드유저가</th><th>엔드마진</th><th style="width:28px"></th></tr></thead>
             <tbody id="tierBody"></tbody>
           </table>
           <button class="tier-add" onclick="addTierRow()"><i class="fa fa-plus"></i> 단위 추가</button>
@@ -816,28 +816,31 @@ function renderTier(tiers){
   const tbody=document.getElementById('tierBody');
   if(!tbody) return;
   const best = window._bestPrice || 0;
+
+  function marginBadge(val, base){
+    if(val <= 0 || base <= 0) return '<span style="color:var(--text3);font-size:11px">—</span>';
+    const m = Math.round((val - base) / val * 100);
+    const color = m>=30 ? 'var(--green-dark)' : m>=15 ? '#E67700' : 'var(--red)';
+    return `<span style="font-size:12px;font-weight:700;color:${color}">${m}%</span>`;
+  }
+
   tbody.innerHTML=tiers.map((t,i)=>{
-    const end = parseFloat(t.end);
-    const dist = parseFloat(t.dist);
-    // 마진율: 엔드유저가 기준
-    const margin = (end > 0 && best > 0) ? Math.round((end - best) / end * 100) : null;
-    const distMargin = (dist > 0 && best > 0) ? Math.round((dist - best) / dist * 100) : null;
-    const marginDisplay = margin !== null
-      ? `<span style="font-size:12px;font-weight:700;color:${margin>=30?'var(--green-dark)':margin>=15?'var(--orange, #E67700)':'var(--red)'}">${margin}%</span>`
-      : '<span style="color:var(--text3);font-size:11px">—</span>';
+    const end  = parseFloat(t.end)  || 0;
+    const dist = parseFloat(t.dist) || 0;
     return `<tr>
     <td><input type="text" value="${t.label}" placeholder="수량 단위 입력" data-col="label" data-idx="${i}" oninput="onTierInput(this)"></td>
     <td><input type="number" value="${t.dist}" placeholder="—" data-col="dist" data-idx="${i}" oninput="onTierInput(this)" style="text-align:right"></td>
+    <td style="text-align:center;border:1px solid var(--border);padding:4px">${marginBadge(dist, best)}</td>
     <td><input type="number" value="${t.end}" placeholder="—" data-col="end" data-idx="${i}" oninput="onTierInput(this)" style="text-align:right"></td>
-    <td style="text-align:center;border:1px solid var(--border)">${marginDisplay}</td>
+    <td style="text-align:center;border:1px solid var(--border);padding:4px">${marginBadge(end, best)}</td>
     <td style="text-align:center;padding:2px">
       <button onclick="deleteTierRow(${i})" title="삭제" style="border:none;background:none;color:#ccc;cursor:pointer;font-size:12px;padding:2px 4px">
         <i class="fa fa-times"></i>
       </button>
     </td>
   </tr>`;}).join('')+
-  `<tr><td colspan="5" style="text-align:center;font-size:10px;color:var(--text3);padding:5px;border-top:1px dashed var(--border)">
-    ₩ 단위 입력 · 마진율 = (엔드유저가 - 최저매입가) ÷ 엔드유저가 · 자동 저장
+  `<tr><td colspan="6" style="text-align:center;font-size:10px;color:var(--text3);padding:5px;border-top:1px dashed var(--border)">
+    ₩ 단위 입력 · 마진율 = (판매가 - 최저매입가) ÷ 판매가 · 자동 저장
   </td></tr>`;
 }
 function deleteTierRow(idx){
