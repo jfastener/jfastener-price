@@ -332,6 +332,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Malgun Gothic','Apple SD Goth
       <button class="nav-item" data-cat="SPECIAL PIN" onclick="setCat('SPECIAL PIN',this)">
         <i class="fa fa-thumbtack"></i>Special Pin<span class="cnt">2</span>
       </button>
+      <button class="nav-item" data-cat="__ETC__" onclick="setCat('__ETC__',this)">
+        <i class="fa fa-ellipsis"></i>기타<span class="cnt" id="cnt-etc">0</span>
+      </button>
     </div>
     <div>
       <div class="sb-title">수입 메이커</div>
@@ -629,6 +632,10 @@ function loadUserData(){
     const existPns = new Set(ALL_PRODUCTS.map(p=>p.pn));
     added.forEach(p=>{ if(!existPns.has(p.pn)) ALL_PRODUCTS.push(p); });
   }catch(e){}
+  // 기타 카운트 업데이트
+  const etcCount = ALL_PRODUCTS.filter(p=>!KNOWN_CATS.includes(p.cat)).length;
+  const etcEl = document.getElementById('cnt-etc');
+  if(etcEl) etcEl.textContent = etcCount;
 }
 function save(key,obj){ try{ localStorage.setItem(key,JSON.stringify(obj)); }catch(e){} }
 
@@ -662,9 +669,14 @@ function fmt(n){
 }
 
 // ── 필터 ───────────────────────────────────────────────
+const KNOWN_CATS = ['BLIND RIVET','RIVET NUT','CLINCHING','HIGH STRENGTH RIVET','LOCK BOLT',
+  'TOOL','TAURUS 부품','BOLT, NUT, 직결피스류','RIVET','CAPTIVE SCREW','SPECIAL PIN'];
+
 function getFiltered(){
   return ALL_PRODUCTS.filter(p=>{
-    if(state.cat && p.cat!==state.cat) return false;
+    if(state.cat==='__ETC__'){
+      if(KNOWN_CATS.includes(p.cat)) return false;
+    } else if(state.cat && p.cat!==state.cat) return false;
     if(state.maker && !p.makers.some(m=>m.m===state.maker)) return false;
     if(state.chip==='multi' && p.makers.length<2) return false;
     if(state.chip==='single' && p.makers.length>1) return false;
