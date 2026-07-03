@@ -166,6 +166,37 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Malgun Gothic','Apple SD Goth
 .photo-slot img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 .photo-slot:hover{border-color:var(--green);color:var(--green)}
 .photo-slot i{font-size:20px}
+/* ── 라이트박스 ── */
+#lightbox{display:none;position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:900;
+  align-items:center;justify-content:center;flex-direction:column}
+#lightbox.open{display:flex}
+#lightbox img{max-width:90vw;max-height:80vh;object-fit:contain;border-radius:8px;
+  box-shadow:0 8px 40px rgba(0,0,0,.5);user-select:none}
+.lb-nav{position:absolute;top:50%;transform:translateY(-50%);background:rgba(255,255,255,.15);
+  border:none;color:#fff;font-size:24px;width:48px;height:48px;border-radius:50%;
+  cursor:pointer;display:flex;align-items:center;justify-content:center;
+  transition:background .15s;backdrop-filter:blur(4px)}
+.lb-nav:hover{background:rgba(255,255,255,.3)}
+#lbPrev{left:20px}
+#lbNext{right:20px}
+.lb-close{position:absolute;top:16px;right:20px;background:rgba(255,255,255,.15);
+  border:none;color:#fff;font-size:20px;width:40px;height:40px;border-radius:50%;
+  cursor:pointer;display:flex;align-items:center;justify-content:center;
+  transition:background .15s;backdrop-filter:blur(4px)}
+.lb-close:hover{background:rgba(255,255,255,.3)}
+.lb-counter{position:absolute;bottom:24px;left:50%;transform:translateX(-50%);
+  color:rgba(255,255,255,.7);font-size:13px;letter-spacing:.5px}
+.lb-dots{position:absolute;bottom:20px;left:50%;transform:translateX(-50%);
+  display:flex;gap:8px;align-items:center}
+.lb-dot{width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.3);
+  cursor:pointer;border:none;padding:0;transition:background .15s}
+.lb-dot.active{background:#fff;transform:scale(1.2)}
+.lb-del{position:absolute;top:16px;right:72px;background:rgba(220,53,69,.7);
+  border:none;color:#fff;font-size:14px;width:40px;height:40px;border-radius:50%;
+  cursor:pointer;display:flex;align-items:center;justify-content:center;
+  transition:background .15s}
+.lb-del:hover{background:rgba(220,53,69,1)}
+
 .spec-tbl{width:100%;border-collapse:collapse}
 .spec-tbl tr{border-bottom:1px solid var(--border)}
 .spec-tbl td{padding:6px 2px;font-size:12px}
@@ -894,12 +925,76 @@ function renderPhotos(pn){
   const photos=photoStore[pn]||[];
   const grid=document.getElementById('photoGrid');
   let html=photos.map((src,i)=>`
-    <div class="photo-slot" onclick="removePhoto('${pn}',${i})">
+    <div class="photo-slot" onclick="openLightbox('${pn}',${i})" style="cursor:zoom-in">
       <img src="${src}" alt="제품 사진">
+      <div style="position:absolute;inset:0;background:rgba(0,0,0,0);transition:.15s;display:flex;align-items:center;justify-content:center;opacity:0"
+        onmouseenter="this.style.background='rgba(0,0,0,.25)';this.style.opacity='1'"
+        onmouseleave="this.style.background='rgba(0,0,0,0)';this.style.opacity='0'">
+        <i class="fa fa-magnifying-glass-plus" style="color:#fff;font-size:20px"></i>
+      </div>
     </div>`).join('');
-  if(photos.length<4) html+=`<div class="photo-slot" onclick="addPhoto('${pn}')"><i class="fa fa-camera"></i><span>사진 추가</span></div>`;
+  if(photos.length<6) html+=`<div class="photo-slot" onclick="addPhoto('${pn}')"><i class="fa fa-camera"></i><span>사진 추가</span></div>`;
   grid.innerHTML=html;
 }
+// ── 라이트박스 ──────────────────────────────────────────
+let _lbPn = null, _lbIdx = 0;
+
+function openLightbox(pn, idx){
+  _lbPn = pn; _lbIdx = idx;
+  document.getElementById('lightbox').classList.add('open');
+  lbRender();
+  document.body.style.overflow = 'hidden';
+}
+function closeLightbox(){
+  document.getElementById('lightbox').classList.remove('open');
+  document.body.style.overflow = '';
+}
+function lbRender(){
+  const photos = photoStore[_lbPn]||[];
+  if(!photos.length){ closeLightbox(); return; }
+  _lbIdx = Math.max(0, Math.min(_lbIdx, photos.length-1));
+  document.getElementById('lbImg').src = photos[_lbIdx];
+  // 점(dot) 렌더
+  const dots = document.getElementById('lbDots');
+  dots.innerHTML = photos.map((_, i) =>
+    `<button class="lb-dot${i===_lbIdx?' active':''}" onclick="lbGo(${i})"></button>`
+  ).join('');
+  // 화살표 표시
+  document.getElementById('lbPrev').style.display = photos.length > 1 ? 'flex' : 'none';
+  document.getElementById('lbNext').style.display = photos.length > 1 ? 'flex' : 'none';
+}
+function lbGo(idx){ _lbIdx = idx; lbRender(); }
+function lbPrev(){ const photos=photoStore[_lbPn]||[]; _lbIdx=(_lbIdx-1+photos.length)%photos.length; lbRender(); }
+function lbNext(){ const photos=photoStore[_lbPn]||[]; _lbIdx=(_lbIdx+1)%photos.length; lbRender(); }
+function lbDel(){
+  if(!confirm('이 사진을 삭제할까요?')) return;
+  photoStore[_lbPn].splice(_lbIdx,1);
+  save(LS.photo,photoStore);
+  renderPhotos(_lbPn);
+  const photos=photoStore[_lbPn]||[];
+  if(!photos.length){ closeLightbox(); return; }
+  _lbIdx = Math.min(_lbIdx, photos.length-1);
+  lbRender();
+}
+
+document.addEventListener('DOMContentLoaded', ()=>{
+  document.getElementById('lbClose')?.addEventListener('click', closeLightbox);
+  document.getElementById('lbPrev')?.addEventListener('click', lbPrev);
+  document.getElementById('lbNext')?.addEventListener('click', lbNext);
+  document.getElementById('lbDel')?.addEventListener('click', lbDel);
+  document.getElementById('lightbox')?.addEventListener('click', e=>{
+    if(e.target===document.getElementById('lightbox')) closeLightbox();
+  });
+  // 키보드 단축키
+  document.addEventListener('keydown', e=>{
+    if(!document.getElementById('lightbox').classList.contains('open')) return;
+    if(e.key==='ArrowLeft')  lbPrev();
+    if(e.key==='ArrowRight') lbNext();
+    if(e.key==='Escape')     closeLightbox();
+  });
+});
+
+
 function addPhoto(pn){
   const inp=document.createElement('input');
   inp.type='file'; inp.accept='image/*';
@@ -1569,5 +1664,15 @@ document.getElementById('addModal').addEventListener('click',function(e){
   if(e.target===this) closeAddModal();
 });
 </script>
+
+<!-- ── 라이트박스 ── -->
+<div id="lightbox">
+  <button class="lb-close" id="lbClose" title="닫기"><i class="fa fa-times"></i></button>
+  <button class="lb-del" id="lbDel" title="사진 삭제"><i class="fa fa-trash"></i></button>
+  <button class="lb-nav" id="lbPrev"><i class="fa fa-chevron-left"></i></button>
+  <img id="lbImg" src="" alt="제품 사진 확대">
+  <button class="lb-nav" id="lbNext"><i class="fa fa-chevron-right"></i></button>
+  <div class="lb-dots" id="lbDots"></div>
+</div>
 </body>
 </html>
