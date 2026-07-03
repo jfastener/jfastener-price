@@ -196,6 +196,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Malgun Gothic','Apple SD Goth
   cursor:pointer;display:flex;align-items:center;justify-content:center;
   transition:background .15s}
 .lb-del:hover{background:rgba(220,53,69,1)}
+.lb-down{position:absolute;top:16px;right:120px;background:rgba(29,158,117,.7);
+  border:none;color:#fff;font-size:14px;width:40px;height:40px;border-radius:50%;
+  cursor:pointer;display:flex;align-items:center;justify-content:center;
+  transition:background .15s}
+.lb-down:hover{background:rgba(29,158,117,1)}
 
 .spec-tbl{width:100%;border-collapse:collapse}
 .spec-tbl tr{border-bottom:1px solid var(--border)}
@@ -976,12 +981,22 @@ function lbDel(){
   _lbIdx = Math.min(_lbIdx, photos.length-1);
   lbRender();
 }
+function lbDownload(){
+  const photos=photoStore[_lbPn]||[];
+  const src=photos[_lbIdx];
+  if(!src) return;
+  const a=document.createElement('a');
+  a.href=src;
+  a.download=`${_lbPn}_${_lbIdx+1}.jpg`;
+  a.click();
+}
 
 document.addEventListener('DOMContentLoaded', ()=>{
   document.getElementById('lbClose')?.addEventListener('click', closeLightbox);
   document.getElementById('lbPrev')?.addEventListener('click', lbPrev);
   document.getElementById('lbNext')?.addEventListener('click', lbNext);
   document.getElementById('lbDel')?.addEventListener('click', lbDel);
+  document.getElementById('lbDown')?.addEventListener('click', lbDownload);
   document.getElementById('lightbox')?.addEventListener('click', e=>{
     if(e.target===document.getElementById('lightbox')) closeLightbox();
   });
@@ -1669,6 +1684,7 @@ document.getElementById('addModal').addEventListener('click',function(e){
 <div id="lightbox">
   <button class="lb-close" id="lbClose" title="닫기"><i class="fa fa-times"></i></button>
   <button class="lb-del" id="lbDel" title="사진 삭제"><i class="fa fa-trash"></i></button>
+  <button class="lb-down" id="lbDown" title="사진 다운로드"><i class="fa fa-download"></i></button>
   <button class="lb-nav" id="lbPrev"><i class="fa fa-chevron-left"></i></button>
   <img id="lbImg" src="" alt="제품 사진 확대">
   <button class="lb-nav" id="lbNext"><i class="fa fa-chevron-right"></i></button>
