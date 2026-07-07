@@ -232,9 +232,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Malgun Gothic','Apple SD Goth
 .tier-tbl th:first-child{text-align:left;padding-left:6px}
 .tier-tbl td{padding:3px 4px;border:1px solid var(--border)}
 .tier-tbl td:first-child{color:var(--text2);font-size:11px}
-.tier-tbl input{width:100%;border:none;background:transparent;font-size:12px;font-weight:500;
+.tier-tbl input{width:100%;border:none;background:transparent;font-size:11px;font-weight:500;
   text-align:right;color:var(--text);padding:0 2px;outline:none;font-family:inherit;min-width:0}
 .tier-tbl input:focus{background:#FFFDE7;border-radius:2px}
+.tier-tbl td:first-child input{text-align:left;font-size:11px}
 .tier-add{display:flex;align-items:center;gap:4px;font-size:11px;color:var(--green);
   cursor:pointer;border:none;background:none;padding:5px 0;margin-top:4px}
 .tier-add:hover{color:var(--green-dark)}
@@ -455,11 +456,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Malgun Gothic','Apple SD Goth
           <div class="sec-title" style="margin-top:16px">판매단가 (수량별)</div>
           <table class="tier-tbl" id="tierTbl">
             <thead><tr>
-              <th style="width:28%;text-align:left">수량 단위</th>
-              <th style="width:16%">유통단가</th>
-              <th style="width:12%">유통마진</th>
-              <th style="width:16%">엔드유저가</th>
-              <th style="width:12%">엔드마진</th>
+              <th style="width:38%;text-align:left">수량 단위</th>
+              <th style="width:13%">유통단가</th>
+              <th style="width:10%">유통마진</th>
+              <th style="width:13%">엔드유저가</th>
+              <th style="width:10%">엔드마진</th>
               <th style="width:16px"></th>
             </tr></thead>
             <tbody id="tierBody"></tbody>
