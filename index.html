@@ -770,7 +770,11 @@ function renderMore(){
       const el=document.createElement('div');
       el.className='card'+(state.selectedPn===p.pn?' selected':'');
       el.onclick=()=>selectProduct(p.pn);
-      el.innerHTML=`<div class="card-img"><i class="fa fa-box big"></i>${catBadge(p.cat)}${upd?'<span class="update-dot" title="최신 단가 반영"></span>':''}</div>
+      const cardPhoto = (photoStore[p.pn]||[])[0];
+      const cardImgInner = cardPhoto
+        ? `<img src="${cardPhoto}" alt="제품사진" style="width:100%;height:100%;object-fit:cover;display:block">`
+        : `<i class="fa fa-box big"></i>`;
+      el.innerHTML=`<div class="card-img">${cardImgInner}${catBadge(p.cat)}${upd?'<span class="update-dot" title="최신 단가 반영"></span>':''}</div>
 <div class="card-body">
   <div class="card-pn">${p.pn}</div>
   <div class="card-name">${p.name||''}</div>
@@ -791,7 +795,11 @@ function renderMore(){
       const el=document.createElement('div');
       el.className='list-row'+(state.selectedPn===p.pn?' selected':'');
       el.onclick=()=>selectProduct(p.pn);
-      el.innerHTML=`<div class="list-icon"><i class="fa fa-box"></i></div>
+      const listPhoto = (photoStore[p.pn]||[])[0];
+      const listIconInner = listPhoto
+        ? `<img src="${listPhoto}" alt="제품사진" style="width:100%;height:100%;object-fit:cover;border-radius:var(--radius)">`
+        : `<i class="fa fa-box"></i>`;
+      el.innerHTML=`<div class="list-icon">${listIconInner}</div>
 <div class="list-info">
   <div class="list-pn">${p.pn}</div>
   <div class="list-name">${p.name||''}</div>
@@ -933,6 +941,50 @@ function addTierRow(){
 }
 
 // ── 사진 ───────────────────────────────────────────────
+// ── 카드 썸네일 즉시 업데이트 ────────────────────────
+function updateCardPhoto(pn){
+  const photo = (photoStore[pn]||[])[0];
+  // 그리드 카드
+  document.querySelectorAll('.card').forEach(card=>{
+    if(card.onclick && card.onclick.toString().includes(`'${pn}'`)){
+      const imgArea = card.querySelector('.card-img');
+      if(!imgArea) return;
+      const existing = imgArea.querySelector('img');
+      if(photo){
+        if(existing){ existing.src=photo; }
+        else{
+          const icon = imgArea.querySelector('i.big');
+          if(icon) icon.remove();
+          const img = document.createElement('img');
+          img.src=photo; img.alt='제품사진';
+          img.style.cssText='width:100%;height:100%;object-fit:cover;display:block';
+          imgArea.insertBefore(img, imgArea.firstChild);
+        }
+      } else {
+        if(existing) existing.remove();
+        if(!imgArea.querySelector('i.big')){
+          const icon = document.createElement('i');
+          icon.className='fa fa-box big';
+          imgArea.insertBefore(icon, imgArea.firstChild);
+        }
+      }
+    }
+  });
+  // 리스트 아이콘
+  document.querySelectorAll('.list-row').forEach(row=>{
+    if(row.onclick && row.onclick.toString().includes(`'${pn}'`)){
+      const iconDiv = row.querySelector('.list-icon');
+      if(!iconDiv) return;
+      if(photo){
+        iconDiv.innerHTML=`<img src="${photo}" alt="제품사진" style="width:100%;height:100%;object-fit:cover;border-radius:var(--radius)">`;
+      } else {
+        iconDiv.innerHTML='<i class="fa fa-box"></i>';
+      }
+    }
+  });
+}
+
+
 function renderPhotos(pn){
   const photos=photoStore[pn]||[];
   const grid=document.getElementById('photoGrid');
@@ -982,6 +1034,7 @@ function lbDel(){
   if(!confirm('이 사진을 삭제할까요?')) return;
   photoStore[_lbPn].splice(_lbIdx,1);
   save(LS.photo,photoStore);
+  updateCardPhoto(_lbPn);
   renderPhotos(_lbPn);
   const photos=photoStore[_lbPn]||[];
   if(!photos.length){ closeLightbox(); return; }
@@ -1027,6 +1080,7 @@ function addPhoto(pn){
       if(!photoStore[pn]) photoStore[pn]=[];
       photoStore[pn].push(ev.target.result);
       save(LS.photo,photoStore);
+      updateCardPhoto(pn);
       renderPhotos(pn);
     };
     reader.readAsDataURL(file);
@@ -1037,6 +1091,7 @@ function removePhoto(pn,idx){
   if(!confirm('사진을 삭제할까요?')) return;
   photoStore[pn].splice(idx,1);
   save(LS.photo,photoStore);
+  updateCardPhoto(pn);
   renderPhotos(pn);
 }
 
