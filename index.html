@@ -1866,6 +1866,356 @@ function exportExcel(){
 document.getElementById('addModal').addEventListener('click',function(e){
   if(e.target===this) closeAddModal();
 });
+
+
+// ════════════════════════════════════════════════
+//  새 기능 JS
+// ════════════════════════════════════════════════
+
+// ── 즐겨찾기 ─────────────────────────────────────
+function toggleFav(pn, btn){
+  if(favStore.has(pn)){ favStore.delete(pn); btn.textContent='☆'; btn.classList.replace('on','off'); }
+  else { favStore.add(pn); btn.textContent='★'; btn.classList.replace('off','on'); }
+  save(LS.fav, [...favStore]);
+  document.getElementById('cnt-fav').textContent = favStore.size;
+}
+function setCatFav(el){
+  state.cat='__FAV__'; state.maker=''; state.selectedPn=null;
+  document.querySelectorAll('[data-cat]').forEach(n=>n.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('dashboardView').style.display='none';
+  document.getElementById('mainContent').style.display='flex';
+  closeDetail(); render();
+}
+
+// getFiltered에 즐겨찾기 필터 추가 (기존 함수 패치)
+const _origGetFiltered = getFiltered;
+// getFiltered는 이미 정의돼 있으므로 아래처럼 래핑
+window._patchGetFiltered = function(){
+  // no-op: getFiltered 내부에서 처리
+};
+
+// ── 대시보드 ─────────────────────────────────────
+function showDashboard(el){
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('dashboardView').style.display='flex';
+  document.getElementById('mainContent').style.display='none';
+  renderDashboard();
+}
+function hideDashboard(){
+  document.getElementById('dashboardView').style.display='none';
+  document.getElementById('mainContent').style.display='flex';
+}
+function renderDashboard(){
+  const products = ALL_PRODUCTS;
+  const total = products.length;
+  const withPrice = products.filter(p=>p.makers.length>0).length;
+  const withPhoto = products.filter(p=>(photoStore[p.pn]||[]).length>0).length;
+  const favCnt = favStore.size;
+
+  // KPI 카드
+  document.getElementById('dashKpis').innerHTML = [
+    {val:total.toLocaleString(), label:'전체 품목', color:'var(--green)', icon:'fa-box'},
+    {val:withPrice.toLocaleString(), label:'단가 등록 품목', color:'var(--blue)', icon:'fa-tag'},
+    {val:withPhoto.toLocaleString(), label:'사진 등록 품목', color:'var(--orange,#E67700)', icon:'fa-image'},
+    {val:favCnt, label:'즐겨찾기', color:'#E6A817', icon:'fa-star'},
+  ].map(k=>`
+    <div class="dash-card">
+      <div style="font-size:20px;color:${k.color}"><i class="fa ${k.icon}"></i></div>
+      <div class="dash-card-val" style="color:${k.color}">${k.val}</div>
+      <div class="dash-card-label">${k.label}</div>
+    </div>`).join('');
+
+  // 마진율 경보 - tier에 단가 입력된 것 중 엔드마진 30% 미만
+  const alerts = [];
+  products.forEach(p=>{
+    const tiers = tierStore[p.pn]||[];
+    const best = p.makers.length ? Math.min(...p.makers.map(m=>m.p)) : 0;
+    tiers.forEach(t=>{
+      if(!t.end || !best) return;
+      const margin = Math.round((parseFloat(t.end)/best-1)*100);
+      if(margin < 30 && margin >= 0) alerts.push({pn:p.pn, name:p.name, label:t.label, margin, best, end:t.end});
+    });
+  });
+  alerts.sort((a,b)=>a.margin-b.margin);
+  const alertEl = document.getElementById('dashAlerts');
+  alertEl.innerHTML = alerts.length
+    ? alerts.slice(0,8).map(a=>`
+      <div class="alert-row" onclick="selectProduct('${a.pn}');hideDashboard()" style="cursor:pointer">
+        <span class="dash-pn">${a.pn}</span>
+        <span style="flex:1;font-size:11px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${a.label}</span>
+        <span style="font-weight:700;color:var(--red)">${a.margin}%</span>
+      </div>`).join('')
+    : '<div style="color:var(--text3);font-size:12px;padding:8px 0">경보 없음 👍</div>';
+
+  // 즐겨찾기
+  const favEl = document.getElementById('dashFavs');
+  const favItems = [...favStore].map(pn=>ALL_PRODUCTS.find(p=>p.pn===pn)).filter(Boolean);
+  favEl.innerHTML = favItems.length
+    ? favItems.slice(0,6).map(p=>`
+      <div class="dash-row" onclick="selectProduct('${p.pn}');hideDashboard()" style="cursor:pointer">
+        <span class="dash-pn">${p.pn}</span>
+        <span style="flex:1;font-size:11px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.name||''}</span>
+      </div>`).join('')
+    : '<div style="color:var(--text3);font-size:12px;padding:8px 0">즐겨찾기 없음 — 카드의 ☆ 클릭</div>';
+
+  // 메이커별 품목 수
+  const makerCnt = {};
+  products.forEach(p=>p.makers.forEach(m=>{
+    const n=getMakerAlias(m.m); makerCnt[n]=(makerCnt[n]||0)+1;
+  }));
+  const makerSorted = Object.entries(makerCnt).sort((a,b)=>b[1]-a[1]).slice(0,12);
+  const maxCnt = makerSorted[0]?.[1]||1;
+  document.getElementById('dashMakers').innerHTML = makerSorted.map(([m,c])=>`
+    <div class="dash-row">
+      <span style="flex:0 0 120px;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${m}</span>
+      <div class="dash-bar"><div class="dash-bar-fill" style="width:${Math.round(c/maxCnt*100)}%"></div></div>
+      <span style="font-size:11px;font-weight:600;color:var(--text2);min-width:32px;text-align:right">${c}</span>
+    </div>`).join('');
+
+  // 최근 업데이트 품목
+  const recent = products
+    .flatMap(p=>p.makers.filter(m=>m.u).map(m=>({pn:p.pn,name:p.name,maker:m.m,date:m.d,price:m.p})))
+    .sort((a,b)=>b.date.localeCompare(a.date)).slice(0,8);
+  document.getElementById('dashRecent').innerHTML = recent.map(r=>`
+    <div class="dash-row" onclick="selectProduct('${r.pn}');hideDashboard()" style="cursor:pointer">
+      <span class="dash-pn">${r.pn}</span>
+      <span style="flex:1;font-size:11px;color:var(--text2)">${getMakerAlias(r.maker)}</span>
+      <span style="font-size:11px;color:var(--text3)">${r.date}</span>
+      <span style="font-size:12px;font-weight:600;min-width:60px;text-align:right">${fmt(r.price)}</span>
+    </div>`).join('');
+}
+
+// ── 품목 비교 ─────────────────────────────────────
+let compareList = [];
+function toggleCompare(pn){
+  if(compareList.includes(pn)){ compareList=compareList.filter(x=>x!==pn); }
+  else if(compareList.length<4){ compareList.push(pn); }
+  else { alert('최대 4개까지 비교할 수 있어요.'); return; }
+  renderCompareBar();
+}
+function renderCompareBar(){
+  const bar = document.getElementById('compareBar');
+  const chips = document.getElementById('compareChips');
+  if(!compareList.length){ bar.classList.remove('show'); return; }
+  bar.classList.add('show');
+  chips.innerHTML = compareList.map(pn=>`
+    <div class="cmp-chip">${pn}
+      <button onclick="toggleCompare('${pn}')">✕</button>
+    </div>`).join('');
+}
+function clearCompare(){ compareList=[]; renderCompareBar(); }
+function openCompare(){
+  if(compareList.length<2){ alert('2개 이상 선택하세요.'); return; }
+  const products = compareList.map(pn=>ALL_PRODUCTS.find(p=>p.pn===pn)).filter(Boolean);
+  const allMakers = [...new Set(products.flatMap(p=>p.makers.map(m=>m.m)))];
+  let html = `<table class="cmp-tbl"><thead><tr><th>항목</th>`;
+  products.forEach(p=>html+=`<th><div class="dash-pn" style="display:inline-block;margin-bottom:3px">${p.pn}</div><br><span style="font-size:10px;color:var(--text3)">${p.name||''}</span></th>`);
+  html+=`</tr></thead><tbody>`;
+  // 분류
+  html+=`<tr><td>분류</td>`; products.forEach(p=>html+=`<td>${p.cat}</td>`); html+=`</tr>`;
+  // 메이커별 단가
+  allMakers.forEach(mk=>{
+    const prices = products.map(p=>p.makers.find(m=>m.m===mk)?.p);
+    const min = Math.min(...prices.filter(Boolean));
+    html+=`<tr><td>${getMakerAlias(mk)}</td>`;
+    prices.forEach(pr=>html+=`<td class="${pr===min?'cmp-best':''}">${pr?fmt(pr):'—'}</td>`);
+    html+=`</tr>`;
+  });
+  // 최저가
+  const bests = products.map(p=>p.makers.length?Math.min(...p.makers.map(m=>m.p)):null);
+  const minBest = Math.min(...bests.filter(Boolean));
+  html+=`<tr><td>최저 매입가</td>`;
+  bests.forEach(b=>html+=`<td class="${b===minBest?'cmp-best':''}">${b?fmt(b):'—'}</td>`);
+  html+=`</tr>`;
+  // 메이커 수
+  html+=`<tr><td>메이커 수</td>`; products.forEach(p=>html+=`<td>${p.makers.length}개</td>`); html+=`</tr>`;
+  // tier 단가
+  products.forEach(p=>{
+    const tiers=tierStore[p.pn]||[];
+    tiers.forEach(t=>{
+      if(t.end){
+        const b=p.makers.length?Math.min(...p.makers.map(m=>m.p)):0;
+        const m=b?Math.round((parseFloat(t.end)/b-1)*100):null;
+      }
+    });
+  });
+  html+=`</tbody></table>`;
+  document.getElementById('compareContent').innerHTML=html;
+  document.getElementById('compareModal').classList.add('open');
+}
+document.addEventListener('DOMContentLoaded',()=>{
+  document.getElementById('compareModal')?.addEventListener('click',e=>{
+    if(e.target===document.getElementById('compareModal'))
+      document.getElementById('compareModal').classList.remove('open');
+  });
+});
+
+// ── 고객사별 납품단가 ─────────────────────────────
+function renderCustTable(pn){
+  const tbody=document.getElementById('custBody');
+  if(!tbody) return;
+  const custs=custPriceStore[pn]||[];
+  tbody.innerHTML=custs.map((c,i)=>{
+    const best=ALL_PRODUCTS.find(p=>p.pn===pn)?.makers;
+    const minPrice=best?.length?Math.min(...best.map(m=>m.p)):0;
+    const margin=c.price&&minPrice?Math.round((parseFloat(c.price)/minPrice-1)*100):null;
+    const mColor=margin==null?'var(--text3)':margin>=30?'var(--green-dark)':margin>=15?'#E67700':'var(--red)';
+    return`<tr>
+      <td><input type="text" value="${c.name||''}" placeholder="고객사명" data-ci="${i}" data-cf="name" oninput="saveCust('${pn}')"></td>
+      <td><input type="number" value="${c.price||''}" placeholder="—" data-ci="${i}" data-cf="price" oninput="saveCust('${pn}')" style="text-align:right"></td>
+      <td style="text-align:center;border:1px solid var(--border)"><span style="font-size:12px;font-weight:700;color:${mColor}">${margin!=null?margin+'%':'—'}</span></td>
+      <td style="text-align:center;padding:2px"><button onclick="delCust('${pn}',${i})" style="border:none;background:none;color:#ccc;cursor:pointer;font-size:12px">✕</button></td>
+    </tr>`;
+  }).join('')||'<tr><td colspan="4" style="text-align:center;color:var(--text3);padding:10px;font-size:12px">고객사 없음 — 추가 버튼 클릭</td></tr>';
+}
+function addCustRow(){
+  const pn=state.selectedPn; if(!pn) return;
+  if(!custPriceStore[pn]) custPriceStore[pn]=[];
+  custPriceStore[pn].push({name:'',price:''});
+  save(LS.custPrice,custPriceStore);
+  renderCustTable(pn);
+}
+function delCust(pn,idx){
+  custPriceStore[pn].splice(idx,1);
+  save(LS.custPrice,custPriceStore);
+  renderCustTable(pn);
+}
+function saveCust(pn){
+  const rows=document.querySelectorAll('#custBody tr');
+  const custs=[];
+  rows.forEach(row=>{
+    const ins=row.querySelectorAll('input[data-cf]');
+    if(ins.length===2) custs.push({name:ins[0].value,price:ins[1].value});
+  });
+  custPriceStore[pn]=custs;
+  save(LS.custPrice,custPriceStore);
+  renderCustTable(pn); // 마진율 재계산
+}
+
+// ── 단가 이력 차트 ────────────────────────────────
+function renderPriceHistory(pn){
+  const histEl=document.getElementById('histList');
+  const chartEl=document.getElementById('histChart');
+  if(!histEl||!chartEl) return;
+  const hist=priceHistStore[pn]||[];
+  const prod=ALL_PRODUCTS.find(p=>p.pn===pn);
+  // 현재 단가도 포함
+  const allPoints=[];
+  if(prod) prod.makers.forEach(m=>{
+    allPoints.push({date:m.d, maker:getMakerAlias(m.m), price:m.p, current:true});
+  });
+  hist.forEach(h=>allPoints.push({...h,maker:getMakerAlias(h.maker),current:false}));
+  allPoints.sort((a,b)=>a.date.localeCompare(b.date));
+
+  if(!allPoints.length){
+    histEl.innerHTML='<div style="color:var(--text3);font-size:12px;text-align:center;padding:16px">단가 이력 없음</div>';
+    chartEl.innerHTML=''; return;
+  }
+
+  // SVG 꺾은선 차트
+  const makers=[...new Set(allPoints.map(p=>p.maker))];
+  const dates=[...new Set(allPoints.map(p=>p.date))].sort();
+  const W=320,H=100,PAD=30;
+  const prices=allPoints.map(p=>p.price);
+  const minP=Math.min(...prices),maxP=Math.max(...prices);
+  const colors=['#1D9E75','#2F6EBA','#E03131','#E67700','#8E3A9C'];
+  const xScale=i=>(dates.length<2)?W/2:PAD+(W-PAD*2)*(i/(dates.length-1));
+  const yScale=p=>maxP===minP?H/2:H-PAD-(H-PAD*2)*((p-minP)/(maxP-minP));
+
+  let svg=`<svg viewBox="0 0 ${W} ${H}" style="overflow:visible">`;
+  // 그리드
+  [0,.25,.5,.75,1].forEach(t=>{
+    const y=PAD+(H-PAD*2)*t;
+    svg+=`<line x1="${PAD}" y1="${y}" x2="${W-PAD}" y2="${y}" stroke="#eee" stroke-width="1"/>`;
+    const val=maxP-(maxP-minP)*t;
+    svg+=`<text x="${PAD-3}" y="${y+4}" text-anchor="end" font-size="8" fill="#aaa">${val>=1000?Math.round(val/100)/10+'k':Math.round(val)}</text>`;
+  });
+  // 날짜 라벨
+  dates.forEach((d,i)=>{
+    const x=xScale(i);
+    svg+=`<text x="${x}" y="${H-4}" text-anchor="middle" font-size="7" fill="#aaa">${d.slice(2)}</text>`;
+  });
+  // 메이커별 꺾은선
+  makers.forEach((mk,mi)=>{
+    const pts=dates.map(d=>{
+      const found=allPoints.filter(p=>p.maker===mk&&p.date===d);
+      return found.length?{x:xScale(dates.indexOf(d)),y:yScale(found[found.length-1].price)}:null;
+    }).filter(Boolean);
+    if(pts.length<1) return;
+    const col=colors[mi%colors.length];
+    if(pts.length>1) svg+=`<polyline points="${pts.map(p=>p.x+','+p.y).join(' ')}" fill="none" stroke="${col}" stroke-width="1.5"/>`;
+    pts.forEach(p=>svg+=`<circle cx="${p.x}" cy="${p.y}" r="3" fill="${col}"/>`);
+  });
+  // 범례
+  makers.forEach((mk,mi)=>{
+    svg+=`<rect x="${PAD+(mi*80)}" y="2" width="8" height="8" fill="${colors[mi%colors.length]}" rx="2"/>`;
+    svg+=`<text x="${PAD+(mi*80)+11}" y="9" font-size="8" fill="#666">${mk.slice(0,10)}</text>`;
+  });
+  svg+=`</svg>`;
+  chartEl.innerHTML=svg;
+
+  // 리스트
+  histEl.innerHTML=allPoints.slice().reverse().slice(0,15).map(p=>`
+    <div style="display:flex;align-items:center;gap:8px;padding:5px 8px;background:var(--bg3);border-radius:var(--radius)">
+      <span style="font-size:11px;color:var(--green-dark);font-weight:600">${p.maker}</span>
+      <span style="font-size:10px;color:var(--text3)">${p.date}</span>
+      <span style="margin-left:auto;font-size:12px;font-weight:700">${fmt(p.price)}</span>
+      ${p.current?'<span style="font-size:9px;background:var(--green-light);color:var(--green-dark);padding:1px 5px;border-radius:8px">현재</span>':''}
+    </div>`).join('');
+}
+
+// 단가 수정 시 이력에 저장
+const _origSavePriceEdits = savePriceEdits;
+function savePriceEdits(){
+  _origSavePriceEdits();
+  // 현재 선택 품목의 단가를 이력에 기록
+  if(window._currentP){
+    const pn=window._currentP.pn;
+    if(!priceHistStore[pn]) priceHistStore[pn]=[];
+    window._currentP.makers.forEach(m=>{
+      const last=priceHistStore[pn].filter(h=>h.maker===m.m).slice(-1)[0];
+      if(!last||last.price!==m.p){
+        priceHistStore[pn].push({date:m.d,maker:m.m,price:m.p});
+      }
+    });
+    save(LS.priceHistory,priceHistStore);
+  }
+}
+
+// ── 메모 날짜 자동 태그 ──────────────────────────────
+function saveMemo(){
+  if(!state.selectedPn) return;
+  const el=document.getElementById('dMemo');
+  if(!el) return;
+  memoStore[state.selectedPn]=el.value;
+  save(LS.memo,memoStore);
+}
+// 메모 포커스 시 날짜 자동 삽입 옵션
+document.addEventListener('DOMContentLoaded',()=>{
+  document.getElementById('dMemo')?.addEventListener('focus', e=>{
+    // 메모가 비어있을 때만 날짜 자동 삽입
+  });
+  // 메모 우클릭 메뉴 대신 날짜 버튼 추가 (메모 탭 안에)
+});
+
+// ── 탭 전환 시 고객사/이력 렌더 ──────────────────────
+const _origSwitchTab = switchTab;
+function switchTab(el,id){
+  _origSwitchTab(el,id);
+  if(id==='pane-cust' && state.selectedPn) renderCustTable(state.selectedPn);
+  if(id==='pane-hist' && state.selectedPn) renderPriceHistory(state.selectedPn);
+}
+
+// ── 즐겨찾기 카운트 초기화 ───────────────────────────
+document.addEventListener('DOMContentLoaded',()=>{
+  const favCntEl=document.getElementById('cnt-fav');
+  if(favCntEl) favCntEl.textContent=favStore.size||0;
+});
+
+
 </script>
 
 <!-- ── 라이트박스 ── -->
