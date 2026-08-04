@@ -335,6 +335,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Malgun Gothic','Apple SD Goth
 .modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:200;
   display:none;align-items:center;justify-content:center}
 .modal-bg.open{display:flex}
+#quoteModal{display:none;position:fixed !important;top:0 !important;left:0 !important;right:0 !important;bottom:0 !important;width:100vw !important;height:100vh !important;background:rgba(0,0,0,.45) !important;z-index:99999 !important;align-items:center;justify-content:center}
+#quoteModal.open{display:flex !important}
 .modal{background:#fff;border-radius:var(--radius-lg);padding:24px;width:380px;
   box-shadow:0 8px 32px rgba(0,0,0,.2)}
 .modal h3{font-size:15px;font-weight:600;margin-bottom:16px}
@@ -723,7 +725,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Malgun Gothic','Apple SD Goth
 <!-- ══════════════ /설정 모달 ══════════════ -->
 
 <!-- ══════════════ 견적서 모달 ══════════════ -->
-<div class="modal-bg" id="quoteModal" style="z-index:600">
+<div id="quoteModal">
   <div style="background:#fff;border-radius:12px;width:920px;max-width:96vw;max-height:92vh;display:flex;flex-direction:column;overflow:hidden">
     <div style="display:flex;align-items:center;padding:16px 20px;border-bottom:1px solid var(--border)">
       <h3 style="font-size:16px;font-weight:700"><i class="fa fa-file-invoice" style="color:var(--green);margin-right:6px"></i>견적서 작성</h3>
