@@ -758,6 +758,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Malgun Gothic','Apple SD Goth
         </div>
       </div>
 
+      <div style="margin-bottom:16px">
+        <label style="font-size:11px;color:var(--text2);font-weight:600;display:block;margin-bottom:4px">공급자(제이패스너) 담당자</label>
+        <input id="qSupplierPerson" type="text" value="임수정 부장" placeholder="예) 임수정 부장" style="width:100%;height:34px;border:1px solid var(--border2);border-radius:var(--radius);padding:0 10px;font-size:13px;outline:none">
+      </div>
+
       <table style="width:100%;border-collapse:collapse;font-size:12px" id="quoteItemsTbl">
         <thead>
           <tr style="background:var(--bg3)">
@@ -824,10 +829,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Malgun Gothic','Apple SD Goth
     </tr>
     <tr>
       <td style="background:#f2f2f2">대표자</td><td>임지영</td>
-      <td style="background:#f2f2f2">담당자</td><td>임수정 부장</td>
+      <td style="background:#f2f2f2">담당자</td><td id="pSupplierPerson">임수정 부장</td>
     </tr>
     <tr>
-      <td style="background:#f2f2f2">주소</td><td colspan="3">경기도 용인시 기흥구 중부대로 184 힉스유타워 A동 B281호</td>
+      <td style="background:#f2f2f2">주소</td><td colspan="3">https://www.jfastener.com/</td>
     </tr>
     <tr>
       <td style="background:#f2f2f2">업태 / 종목</td><td>제조업외 / 패스너제품제조외</td>
@@ -2583,12 +2588,14 @@ function printQuote(){
   const custPerson = document.getElementById('qCustPerson').value || '';
   const date = document.getElementById('qDate').value || new Date().toISOString().slice(0,10);
   const notes = document.getElementById('qNotes').value || '';
+  const supplierPerson = document.getElementById('qSupplierPerson').value || '';
 
   document.getElementById('pDocNo').textContent = genDocNo();
   document.getElementById('pDate').textContent = date;
   document.getElementById('pCustName').textContent = custName;
   document.getElementById('pCustPerson').textContent = custPerson;
   document.getElementById('pNotes').textContent = notes;
+  document.getElementById('pSupplierPerson').textContent = supplierPerson;
 
   const { subtotal, tax, total } = calcQuoteTotals(cart);
   document.getElementById('pItemsBody').innerHTML = cart.map(item => `
@@ -2609,12 +2616,16 @@ function printQuote(){
     document.getElementById('pDocNo').textContent,
     date, custName, custPerson, notes,
     cart.map(it => ({pn:it.pn, name:it.name, spec:it.spec, qty:it.qty, price:it.price})),
-    { subtotal, tax, total }
+    { subtotal, tax, total },
+    supplierPerson
   );
 
+  const _origTitle = document.title;
+  document.title = '견적서_' + (custName || document.getElementById('pDocNo').textContent);
   document.getElementById('quotePrintArea').style.display = 'block';
   window.print();
   document.getElementById('quotePrintArea').style.display = 'none';
+  document.title = _origTitle;
 }
 document.addEventListener('DOMContentLoaded', updateQuoteBadge);
 updateQuoteBadge();
@@ -2626,7 +2637,7 @@ function getQuoteHistory(){
 function saveQuoteHistoryArr(arr){
   localStorage.setItem('jf_quote_history', JSON.stringify(arr));
 }
-function saveQuoteToHistory(docNo, date, custName, custPerson, notes, items, totals){
+function saveQuoteToHistory(docNo, date, custName, custPerson, notes, items, totals, supplierPerson){
   const history = getQuoteHistory();
   history.unshift({
     docNo: docNo,
@@ -2638,6 +2649,7 @@ function saveQuoteToHistory(docNo, date, custName, custPerson, notes, items, tot
     subtotal: totals.subtotal,
     tax: totals.tax,
     total: totals.total,
+    supplierPerson: supplierPerson || '',
     savedAt: Date.now()
   });
   if(history.length > 500) history.length = 500;
@@ -2659,6 +2671,7 @@ function loadHistoryItem(idx){
   document.getElementById('qCustName').value = h.custName || '';
   document.getElementById('qCustPerson').value = h.custPerson || '';
   document.getElementById('qNotes').value = h.notes || '';
+  document.getElementById('qSupplierPerson').value = h.supplierPerson || '임수정 부장';
   document.getElementById('qDate').value = new Date().toISOString().slice(0,10);
   closeHistoryModal();
   openQuoteModal();
@@ -2673,6 +2686,7 @@ function reprintHistoryItem(idx){
   document.getElementById('pCustName').textContent = h.custName || '';
   document.getElementById('pCustPerson').textContent = h.custPerson || '';
   document.getElementById('pNotes').textContent = h.notes || '';
+  document.getElementById('pSupplierPerson').textContent = h.supplierPerson || '임수정 부장';
   document.getElementById('pItemsBody').innerHTML = h.items.map(item => `
     <tr>
       <td>${item.name}</td>
@@ -2687,9 +2701,12 @@ function reprintHistoryItem(idx){
   document.getElementById('pTax').textContent = fmtWon(h.tax) + '원';
   document.getElementById('pTotal').textContent = fmtWon(h.total) + '원';
 
+  const _origTitle2 = document.title;
+  document.title = '견적서_' + (h.custName || h.docNo);
   document.getElementById('quotePrintArea').style.display = 'block';
   window.print();
   document.getElementById('quotePrintArea').style.display = 'none';
+  document.title = _origTitle2;
 }
 function renderHistoryModal(){
   const history = getQuoteHistory();
