@@ -404,43 +404,43 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Malgun Gothic','Apple SD Goth
       <button class="nav-item" onclick="setCatFav(this)"><i class="fa fa-star" style="color:#FFD700"></i>즐겨찾기<span class="cnt" id="cnt-fav">0</span></button>
       <div class="sb-title" style="margin-top:8px">제품 분류</div>
       <button class="nav-item active" data-cat="" onclick="setCat('',this)">
-        <i class="fa fa-th"></i>전체<span class="cnt">2516</span>
+        <i class="fa fa-th"></i><span class="nav-label">전체</span><span class="cnt">2516</span>
       </button>
       <button class="nav-item" data-cat="BLIND RIVET" onclick="setCat('BLIND RIVET',this)">
-        <i class="fa fa-circle-dot"></i>Blind Rivet<span class="cnt">1272</span>
+        <i class="fa fa-circle-dot"></i><span class="nav-label">Blind Rivet</span><span class="cnt">1272</span>
       </button>
       <button class="nav-item" data-cat="RIVET NUT" onclick="setCat('RIVET NUT',this)">
-        <i class="fa fa-nut"></i>Rivet Nut<span class="cnt">407</span>
+        <i class="fa fa-nut"></i><span class="nav-label">Rivet Nut</span><span class="cnt">407</span>
       </button>
       <button class="nav-item" data-cat="CLINCHING" onclick="setCat('CLINCHING',this)">
-        <i class="fa fa-link"></i>Clinching<span class="cnt">533</span>
+        <i class="fa fa-link"></i><span class="nav-label">Clinching</span><span class="cnt">533</span>
       </button>
       <button class="nav-item" data-cat="HIGH STRENGTH RIVET" onclick="setCat('HIGH STRENGTH RIVET',this)">
-        <i class="fa fa-bolt"></i>High Strength<span class="cnt">43</span>
+        <i class="fa fa-bolt"></i><span class="nav-label">High Strength</span><span class="cnt">43</span>
       </button>
       <button class="nav-item" data-cat="LOCK BOLT" onclick="setCat('LOCK BOLT',this)">
-        <i class="fa fa-lock"></i>Lock Bolt<span class="cnt">32</span>
+        <i class="fa fa-lock"></i><span class="nav-label">Lock Bolt</span><span class="cnt">32</span>
       </button>
       <button class="nav-item" data-cat="TOOL" onclick="setCat('TOOL',this)">
-        <i class="fa fa-wrench"></i>Tool<span class="cnt">61</span>
+        <i class="fa fa-wrench"></i><span class="nav-label">Tool</span><span class="cnt">61</span>
       </button>
       <button class="nav-item" data-cat="TAURUS 부품" onclick="setCat('TAURUS 부품',this)">
-        <i class="fa fa-cog"></i>Taurus 부품<span class="cnt">32</span>
+        <i class="fa fa-cog"></i><span class="nav-label">Taurus 부품</span><span class="cnt">32</span>
       </button>
       <button class="nav-item" data-cat="BOLT, NUT, 직결피스류" onclick="setCat('BOLT, NUT, 직결피스류',this)">
-        <i class="fa fa-screwdriver"></i>Bolt/Nut<span class="cnt">40</span>
+        <i class="fa fa-screwdriver"></i><span class="nav-label">Bolt/Nut</span><span class="cnt">40</span>
       </button>
       <button class="nav-item" data-cat="RIVET" onclick="setCat('RIVET',this)">
-        <i class="fa fa-dot-circle"></i>Rivet<span class="cnt">36</span>
+        <i class="fa fa-dot-circle"></i><span class="nav-label">Rivet</span><span class="cnt">36</span>
       </button>
       <button class="nav-item" data-cat="CAPTIVE SCREW" onclick="setCat('CAPTIVE SCREW',this)">
-        <i class="fa fa-circle"></i>Captive Screw<span class="cnt">9</span>
+        <i class="fa fa-circle"></i><span class="nav-label">Captive Screw</span><span class="cnt">9</span>
       </button>
       <button class="nav-item" data-cat="SPECIAL PIN" onclick="setCat('SPECIAL PIN',this)">
-        <i class="fa fa-thumbtack"></i>Special Pin<span class="cnt">2</span>
+        <i class="fa fa-thumbtack"></i><span class="nav-label">Special Pin</span><span class="cnt">2</span>
       </button>
       <button class="nav-item" data-cat="__ETC__" onclick="setCat('__ETC__',this)">
-        <i class="fa fa-ellipsis"></i>기타<span class="cnt" id="cnt-etc">0</span>
+        <i class="fa fa-ellipsis"></i><span class="nav-label">기타</span><span class="cnt" id="cnt-etc">0</span>
       </button>
     </div>
     <div>
@@ -1014,6 +1014,17 @@ function catBadge(cat){
 // ── Alias 헬퍼 ─────────────────────────────────────────
 function getMakerAlias(name){ return (aliasStore.makers||{})[name] || name; }
 function getCatAlias(name){ return (aliasStore.cats||{})[name] || name; }
+function applyCatAliases(){
+  const aliases = aliasStore.cats||{};
+  document.querySelectorAll('.nav-item[data-cat]').forEach(btn=>{
+    const orig = btn.getAttribute('data-cat');
+    if(!orig) return; // "전체" 버튼(data-cat="")은 건너뜀
+    const label = btn.querySelector('.nav-label');
+    if(!label) return;
+    if(!label.dataset.default) label.dataset.default = label.textContent; // 최초 1회 원본 라벨 저장
+    label.textContent = aliases[orig] || label.dataset.default;
+  });
+}
 function getOrigMaker(alias){
   const m = aliasStore.makers||{};
   const found = Object.keys(m).find(k=>m[k]===alias);
@@ -1928,6 +1939,13 @@ function stgRenderMakers(){
     const changed = v && v!==orig;
     row.style.background = changed?'var(--green-light)':'var(--bg3)';
     row.style.borderColor = changed?'#9FE1CB':'transparent';
+    save(LS.alias, aliasStore);
+    document.querySelectorAll('[data-maker]').forEach(btn=>{
+      const bOrig = btn.getAttribute('data-maker');
+      const icon = btn.querySelector('i');
+      btn.textContent = getMakerAlias(bOrig);
+      if(icon) btn.prepend(icon);
+    });
   };
   list.onclick = e => {
     const btn = e.target.closest('[data-del-maker]');
@@ -1973,6 +1991,8 @@ function stgRenderCats(){
     const changed = v && v!==orig;
     row.style.background = changed?'var(--green-light)':'var(--bg3)';
     row.style.borderColor = changed?'#9FE1CB':'transparent';
+    save(LS.alias, aliasStore);
+    applyCatAliases();
   };
 }
 
@@ -2005,6 +2025,7 @@ function stgRenderLabels(){
     const changed = labelStore[key];
     row.style.background = changed?'var(--green-light)':'var(--bg3)';
     row.style.borderColor = changed?'#9FE1CB':'transparent';
+    saveLabels();
   };
 }
 
@@ -2019,6 +2040,8 @@ function stgSaveAll(){
     btn.textContent = getMakerAlias(orig);
     if(icon) btn.prepend(icon);
   });
+  // 사이드바 대분류 버튼 이름 업데이트
+  applyCatAliases();
   closeSettings();
   render();
   if(state.selectedPn) selectProduct(state.selectedPn);
@@ -2031,6 +2054,13 @@ function stgReset(){
   labelStore = {};
   save(LS.alias, aliasStore);
   saveLabels();
+  document.querySelectorAll('[data-maker]').forEach(btn=>{
+    const orig = btn.getAttribute('data-maker');
+    const icon = btn.querySelector('i');
+    btn.textContent = orig;
+    if(icon) btn.prepend(icon);
+  });
+  applyCatAliases();
   stgSwitchTab(document.querySelector('.stg-tab.active')?.dataset.tab||'maker');
 }
 
