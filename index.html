@@ -1597,8 +1597,15 @@ function renderSpecTable(p){
   const upd = p.makers.filter(m=>m.u);
   const latestDate = upd.length ? upd.sort((a,b)=>b.d.localeCompare(a.d))[0].d : '';
 
-  // 편집 가능 항목 (저장된 값 우선, 없으면 기본값)
-  const editableFields = [
+  // 편집 가능 항목 (저장된 값 우선, 없으면 기본값) — TOOL 분류는 전용 항목 사용
+  const editableFields = (p.cat === 'TOOL') ? [
+    { key:'spec_weight',    label:'무게(weight)',              val: stored.spec_weight    ?? '', placeholder:'예) 1.25 kg' },
+    { key:'spec_stroke',    label:'스트로크(Stroke)',          val: stored.spec_stroke    ?? '', placeholder:'예) Max. 19mm' },
+    { key:'spec_capacity',  label:'리벳 범위(Setting Capacity)',val: stored.spec_capacity  ?? '', placeholder:'예) Ø2.4~4.0mm (Alu, Steel, SUS)' },
+    { key:'spec_pressure',  label:'에어압력(Air Pressure)',    val: stored.spec_pressure  ?? '', placeholder:'예) 6.0~8.0 bar' },
+    { key:'spec_pullforce', label:'Pull Force',                val: stored.spec_pullforce ?? '', placeholder:'예) 11.57 kN' },
+    { key:'spec_note',      label:'Remark',                    val: stored.spec_note      ?? '', placeholder:'예) Vacuum automatically' },
+  ] : [
     { key:'spec_dim',    label:'참고 치수',  val: stored.spec_dim    ?? defaultDim,  placeholder:'예) 0511mm, M4×11' },
     { key:'spec_mat',    label:'재질',       val: stored.spec_mat    ?? '',           placeholder:'예) 알루미늄, SUS304' },
     { key:'spec_head',   label:'헤드 타입',  val: stored.spec_head   ?? '',           placeholder:'예) 플랜지, 소형, 대형' },
