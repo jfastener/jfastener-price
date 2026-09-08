@@ -2308,62 +2308,49 @@ function renderSalesOpsTable(){
   const cat = SUPPLIER_COMPARE[salesOpsCatIdx];
   if(!cat){ wrap.innerHTML=''; return; }
   const lens = cat.lengths;
-  const modeBar = `
-    <div style="display:flex;gap:6px;margin-bottom:10px">
-      <button onclick="setSalesOpsMode('cost')" style="font-size:11px;padding:5px 12px;border-radius:16px;cursor:pointer;border:1px solid ${salesOpsMode==='cost'?'var(--blue)':'var(--border)'};background:${salesOpsMode==='cost'?'var(--blue-light)':'#fff'};color:${salesOpsMode==='cost'?'var(--blue)':'var(--text2)'};font-weight:${salesOpsMode==='cost'?'700':'400'}">매입단가 비교</button>
-      <button onclick="setSalesOpsMode('sell')" style="font-size:11px;padding:5px 12px;border-radius:16px;cursor:pointer;border:1px solid ${salesOpsMode==='sell'?'var(--green)':'var(--border)'};background:${salesOpsMode==='sell'?'var(--green-light)':'#fff'};color:${salesOpsMode==='sell'?'var(--green-dark)':'var(--text2)'};font-weight:${salesOpsMode==='sell'?'700':'400'}">판매단가 보기 (유통25%·엔드50%)</button>
-    </div>`;
-  let html = modeBar + `<div style="overflow:auto;border:1px solid var(--border);border-radius:var(--radius-lg)">`;
+  let html = `<div style="overflow:auto;border:1px solid var(--border);border-radius:var(--radius-lg)">`;
   html += `<table style="border-collapse:collapse;font-size:11px;white-space:nowrap;min-width:100%">`;
   html += `<thead><tr style="background:var(--bg3)">`;
   html += `<th style="position:sticky;left:0;background:var(--bg3);padding:6px 8px;border:1px solid var(--border);z-index:2">규격</th>`;
-  const colspan = salesOpsMode==='cost' ? 2 : 3;
-  lens.forEach(l=>{ html += `<th colspan="${colspan}" style="padding:6px 8px;border:1px solid var(--border);text-align:center">${l}mm</th>`; });
+  lens.forEach(l=>{ html += `<th colspan="5" style="padding:6px 8px;border:1px solid var(--border);text-align:center">${l}mm</th>`; });
   html += `</tr><tr style="background:var(--bg3);font-size:10px;color:var(--text3)">`;
   html += `<th style="position:sticky;left:0;background:var(--bg3);border:1px solid var(--border);z-index:2"></th>`;
-  if(salesOpsMode==='cost'){
-    lens.forEach(()=>{ html += `<th style="padding:3px 6px;border:1px solid var(--border);color:var(--blue)">합동</th><th style="padding:3px 6px;border:1px solid var(--border);color:var(--green-dark)">정금</th>`; });
-  } else {
-    lens.forEach(()=>{ html += `<th style="padding:3px 6px;border:1px solid var(--border);color:var(--text2)">최저매입</th><th style="padding:3px 6px;border:1px solid var(--border);color:#E67700">유통(25%)</th><th style="padding:3px 6px;border:1px solid var(--border);color:var(--green-dark)">엔드(50%)</th>`; });
-  }
+  lens.forEach(()=>{
+    html += `<th style="padding:3px 6px;border:1px solid var(--border);color:var(--blue)">합동</th>`;
+    html += `<th style="padding:3px 6px;border:1px solid var(--border);color:var(--green-dark)">정금</th>`;
+    html += `<th style="padding:3px 6px;border-left:2px solid var(--border2);border-right:1px solid var(--border);border-top:1px solid var(--border);border-bottom:1px solid var(--border);color:#E67700">유통(25%)</th>`;
+    html += `<th style="padding:3px 6px;border:1px solid var(--border);color:#0F6E56">엔드(50%)</th>`;
+  });
   html += `</tr></thead><tbody>`;
   cat.sizes.forEach(sz=>{
     html += `<tr><td style="position:sticky;left:0;background:#fff;padding:5px 8px;border:1px solid var(--border);font-weight:600;z-index:1">${sz}</td>`;
     lens.forEach(l=>{
       const hv = cat.hd[sz] ? cat.hd[sz][l] : undefined;
       const jv = cat.jk[sz] ? cat.jk[sz][l] : undefined;
-      if(salesOpsMode==='cost'){
-        let hCell = hv!==undefined ? hv : '-';
-        let jCell = jv!==undefined ? jv : '-';
-        let hStyle='padding:5px 6px;border:1px solid var(--border);text-align:center';
-        let jStyle='padding:5px 6px;border:1px solid var(--border);text-align:center';
-        if(hv!==undefined && jv!==undefined){
-          if(hv<jv){ hStyle+=';background:var(--green-light);font-weight:600'; }
-          else if(jv<hv){ jStyle+=';background:var(--green-light);font-weight:600'; }
-        }
-        html += `<td style="${hStyle}">${hCell}</td><td style="${jStyle}">${jCell}</td>`;
+      let hCell = hv!==undefined ? hv : '-';
+      let jCell = jv!==undefined ? jv : '-';
+      let hStyle='padding:5px 6px;border:1px solid var(--border);text-align:center';
+      let jStyle='padding:5px 6px;border:1px solid var(--border);text-align:center';
+      if(hv!==undefined && jv!==undefined){
+        if(hv<jv){ hStyle+=';background:var(--green-light);font-weight:600'; }
+        else if(jv<hv){ jStyle+=';background:var(--green-light);font-weight:600'; }
+      }
+      html += `<td style="${hStyle}">${hCell}</td><td style="${jStyle}">${jCell}</td>`;
+      const vals = [hv,jv].filter(v=>v!==undefined);
+      if(!vals.length){
+        html += `<td style="padding:5px 6px;border-left:2px solid var(--border2);border-right:1px solid var(--border);border-top:1px solid var(--border);border-bottom:1px solid var(--border);text-align:center;color:var(--text3)">-</td><td style="padding:5px 6px;border:1px solid var(--border);text-align:center;color:var(--text3)">-</td>`;
       } else {
-        const vals = [hv,jv].filter(v=>v!==undefined);
-        if(!vals.length){
-          html += `<td style="padding:5px 6px;border:1px solid var(--border);text-align:center;color:var(--text3)">-</td><td style="padding:5px 6px;border:1px solid var(--border);text-align:center;color:var(--text3)">-</td><td style="padding:5px 6px;border:1px solid var(--border);text-align:center;color:var(--text3)">-</td>`;
-        } else {
-          const best = Math.min(...vals);
-          const dist = Math.round(best*(1+MARGIN_DIST)*10)/10;
-          const end  = Math.round(best*(1+MARGIN_END)*10)/10;
-          html += `<td style="padding:5px 6px;border:1px solid var(--border);text-align:center;color:var(--text2)">${best}</td>`;
-          html += `<td style="padding:5px 6px;border:1px solid var(--border);text-align:center;color:#E67700;font-weight:600">${dist}</td>`;
-          html += `<td style="padding:5px 6px;border:1px solid var(--border);text-align:center;color:var(--green-dark);font-weight:600">${end}</td>`;
-        }
+        const best = Math.min(...vals);
+        const dist = Math.round(best*(1+MARGIN_DIST)*10)/10;
+        const end  = Math.round(best*(1+MARGIN_END)*10)/10;
+        html += `<td style="padding:5px 6px;border-left:2px solid var(--border2);border-right:1px solid var(--border);border-top:1px solid var(--border);border-bottom:1px solid var(--border);text-align:center;color:#E67700;font-weight:600">${dist}</td>`;
+        html += `<td style="padding:5px 6px;border:1px solid var(--border);text-align:center;color:#0F6E56;font-weight:600">${end}</td>`;
       }
     });
     html += `</tr>`;
   });
   html += `</tbody></table></div>`;
-  if(salesOpsMode==='sell'){
-    html += `<div style="font-size:11px;color:var(--text3);margin-top:8px">최저매입가(합동·정금 중 더 저렴한 쪽) 기준 · 판매단가 = 매입단가 × (1 + 마진율) · 유통(볼트가게) 25%, 엔드유저 50%</div>`;
-    wrap.innerHTML = html; return;
-  }
-  html += `<div style="font-size:11px;color:var(--text3);margin-top:8px">단위: 원 · 초록 배경 = 해당 규격·길이에서 더 저렴한 매입처</div>`;
+  html += `<div style="font-size:11px;color:var(--text3);margin-top:8px">단위: 원 · 초록 배경(합동/정금) = 더 저렴한 매입처 · 유통·엔드 단가는 합동·정금 중 최저매입가 기준 (판매단가 = 매입단가 × (1+마진율), 유통 25%·엔드유저 50%)</div>`;
   wrap.innerHTML = html;
 }
 function renderDashboard(){
