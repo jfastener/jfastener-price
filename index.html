@@ -952,7 +952,8 @@ const LS = {
   alias: 'jf_alias_v2',
   priceEdits: 'jf_price_edits_v1',
   custPrice: 'jf_cust_price_v1',
-  deleted: 'jf_deleted_products_v1'
+  deleted: 'jf_deleted_products_v1',
+  supplierOverride: 'jf_supplier_override_v1'
 };
 
 // ── 인증 ───────────────────────────────────────────────
@@ -985,7 +986,7 @@ window.addEventListener('DOMContentLoaded',()=>{
 });
 
 // ── 로컬 저장소 로드 ───────────────────────────────────
-let tierStore={}, memoStore={}, photoStore={}, drawStore={}, aliasStore={}, specStore={}, favStore=new Set(), custPriceStore={}, priceHistStore={}, deletedStore=new Set();
+let tierStore={}, memoStore={}, photoStore={}, drawStore={}, aliasStore={}, specStore={}, favStore=new Set(), custPriceStore={}, priceHistStore={}, deletedStore=new Set(), supplierOverrideStore={};
 // aliasStore: { makers: {'HANGZHOU RET':'항저우 RET',...}, cats: {'BLIND RIVET':'블라인드 리벳',...} }
 const DEFAULT_TIERS=[
   {label:'100개 단위',dist:'',end:''},
@@ -1011,6 +1012,7 @@ function loadUserData(){
   try{ deletedStore=new Set(JSON.parse(localStorage.getItem(LS.deleted)||'[]')); }catch(e){}
   try{ custPriceStore=JSON.parse(localStorage.getItem(LS.custPrice)||'{}'); }catch(e){}
   try{ priceHistStore=JSON.parse(localStorage.getItem(LS.priceHistory)||'{}'); }catch(e){}
+  try{ supplierOverrideStore=JSON.parse(localStorage.getItem(LS.supplierOverride)||'{}'); }catch(e){}
   // 추가된 품목 병합
   try{
     const added = JSON.parse(localStorage.getItem(LS.added)||'[]');
@@ -2303,16 +2305,45 @@ function setSalesOpsMode(mode){
   salesOpsMode = mode;
   renderSalesOpsTable();
 }
+function getSupplierVal(cat, side, sz, l){
+  const ov = supplierOverrideStore[cat.name] && supplierOverrideStore[cat.name][sz] && supplierOverrideStore[cat.name][sz][l];
+  if(ov && ov[side]!==undefined && ov[side]!==null) return ov[side];
+  const src = side==='hd' ? cat.hd : cat.jk;
+  return (src[sz] ? src[sz][l] : undefined);
+}
+function onSupplierPriceInput(el, catName, sz, l, side){
+  const raw = el.value.trim();
+  const val = raw==='' ? null : parseFloat(raw);
+  if(!supplierOverrideStore[catName]) supplierOverrideStore[catName] = {};
+  if(!supplierOverrideStore[catName][sz]) supplierOverrideStore[catName][sz] = {};
+  if(!supplierOverrideStore[catName][sz][l]) supplierOverrideStore[catName][sz][l] = {};
+  supplierOverrideStore[catName][sz][l][side] = (val===null || isNaN(val)) ? null : val;
+  save(LS.supplierOverride, supplierOverrideStore);
+  renderSalesOpsTable();
+}
+function resetSupplierOverrides(){
+  const cat = SUPPLIER_COMPARE[salesOpsCatIdx];
+  if(!cat) return;
+  if(!confirm(`"${cat.name}" 카테고리에서 직접 수정한 단가를 모두 원래 값으로 되돌릴까요?`)) return;
+  delete supplierOverrideStore[cat.name];
+  save(LS.supplierOverride, supplierOverrideStore);
+  renderSalesOpsTable();
+}
 function renderSalesOpsTable(){
   const wrap = document.getElementById('salesOpsTableWrap');
   const cat = SUPPLIER_COMPARE[salesOpsCatIdx];
   if(!cat){ wrap.innerHTML=''; return; }
   const lens = cat.lengths;
-  let html = `<div style="overflow:auto;border:1px solid var(--border);border-radius:var(--radius-lg)">`;
+  const hasOverrides = !!supplierOverrideStore[cat.name];
+  let html = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <div style="font-size:11px;color:var(--text3)">합동·정금 칸을 클릭해서 실제 단가로 직접 수정할 수 있어요. 입력값은 자동 저장됩니다.</div>
+      ${hasOverrides?`<button onclick="resetSupplierOverrides()" style="font-size:10px;padding:4px 10px;border:1px solid var(--border);border-radius:14px;background:#fff;color:var(--text2);cursor:pointer;white-space:nowrap">이 표 수정값 초기화</button>`:''}
+    </div>`;
+  html += `<div style="overflow:auto;border:1px solid var(--border);border-radius:var(--radius-lg)">`;
   html += `<table style="border-collapse:collapse;font-size:11px;white-space:nowrap;min-width:100%">`;
   html += `<thead><tr style="background:var(--bg3)">`;
   html += `<th style="position:sticky;left:0;background:var(--bg3);padding:6px 8px;border:1px solid var(--border);z-index:2">규격</th>`;
-  lens.forEach(l=>{ html += `<th colspan="5" style="padding:6px 8px;border:1px solid var(--border);text-align:center">${l}mm</th>`; });
+  lens.forEach(l=>{ html += `<th colspan="4" style="padding:6px 8px;border:1px solid var(--border);text-align:center">${l}mm</th>`; });
   html += `</tr><tr style="background:var(--bg3);font-size:10px;color:var(--text3)">`;
   html += `<th style="position:sticky;left:0;background:var(--bg3);border:1px solid var(--border);z-index:2"></th>`;
   lens.forEach(()=>{
@@ -2325,18 +2356,23 @@ function renderSalesOpsTable(){
   cat.sizes.forEach(sz=>{
     html += `<tr><td style="position:sticky;left:0;background:#fff;padding:5px 8px;border:1px solid var(--border);font-weight:600;z-index:1">${sz}</td>`;
     lens.forEach(l=>{
-      const hv = cat.hd[sz] ? cat.hd[sz][l] : undefined;
-      const jv = cat.jk[sz] ? cat.jk[sz][l] : undefined;
-      let hCell = hv!==undefined ? hv : '-';
-      let jCell = jv!==undefined ? jv : '-';
-      let hStyle='padding:5px 6px;border:1px solid var(--border);text-align:center';
-      let jStyle='padding:5px 6px;border:1px solid var(--border);text-align:center';
+      const hv = getSupplierVal(cat,'hd',sz,l);
+      const jv = getSupplierVal(cat,'jk',sz,l);
+      const hOv = supplierOverrideStore[cat.name]?.[sz]?.[l]?.hd !== undefined && supplierOverrideStore[cat.name]?.[sz]?.[l]?.hd !== null;
+      const jOv = supplierOverrideStore[cat.name]?.[sz]?.[l]?.jk !== undefined && supplierOverrideStore[cat.name]?.[sz]?.[l]?.jk !== null;
+      let hStyle='padding:0;border:1px solid var(--border);text-align:center';
+      let jStyle='padding:0;border:1px solid var(--border);text-align:center';
       if(hv!==undefined && jv!==undefined){
-        if(hv<jv){ hStyle+=';background:var(--green-light);font-weight:600'; }
-        else if(jv<hv){ jStyle+=';background:var(--green-light);font-weight:600'; }
+        if(hv<jv){ hStyle+=';background:var(--green-light)'; }
+        else if(jv<hv){ jStyle+=';background:var(--green-light)'; }
       }
-      html += `<td style="${hStyle}">${hCell}</td><td style="${jStyle}">${jCell}</td>`;
-      const vals = [hv,jv].filter(v=>v!==undefined);
+      if(hOv) hStyle+=';background:var(--blue-light)';
+      if(jOv) jStyle+=';background:var(--blue-light)';
+      const hInputStyle = `width:52px;border:none;background:transparent;text-align:center;font-size:11px;padding:5px 2px;font-weight:${hOv?'700':'500'};color:${hOv?'var(--blue)':'inherit'}`;
+      const jInputStyle = `width:52px;border:none;background:transparent;text-align:center;font-size:11px;padding:5px 2px;font-weight:${jOv?'700':'500'};color:${jOv?'var(--green-dark)':'inherit'}`;
+      html += `<td style="${hStyle}"><input type="number" step="0.1" value="${hv!==undefined?hv:''}" placeholder="-" style="${hInputStyle}" onchange="onSupplierPriceInput(this,'${cat.name.replace(/'/g,"\\'")}','${sz}',${l},'hd')"></td>`;
+      html += `<td style="${jStyle}"><input type="number" step="0.1" value="${jv!==undefined?jv:''}" placeholder="-" style="${jInputStyle}" onchange="onSupplierPriceInput(this,'${cat.name.replace(/'/g,"\\'")}','${sz}',${l},'jk')"></td>`;
+      const vals = [hv,jv].filter(v=>v!==undefined && v!==null);
       if(!vals.length){
         html += `<td style="padding:5px 6px;border-left:2px solid var(--border2);border-right:1px solid var(--border);border-top:1px solid var(--border);border-bottom:1px solid var(--border);text-align:center;color:var(--text3)">-</td><td style="padding:5px 6px;border:1px solid var(--border);text-align:center;color:var(--text3)">-</td>`;
       } else {
@@ -2350,7 +2386,7 @@ function renderSalesOpsTable(){
     html += `</tr>`;
   });
   html += `</tbody></table></div>`;
-  html += `<div style="font-size:11px;color:var(--text3);margin-top:8px">단위: 원 · 초록 배경(합동/정금) = 더 저렴한 매입처 · 유통·엔드 단가는 합동·정금 중 최저매입가 기준 (판매단가 = 매입단가 × (1+마진율), 유통 25%·엔드유저 50%)</div>`;
+  html += `<div style="font-size:11px;color:var(--text3);margin-top:8px">단위: 원 · 초록 배경(합동/정금) = 더 저렴한 매입처 · 파란 배경 = 직접 수정한 값 · 유통·엔드 단가는 합동·정금 중 최저매입가 기준 (판매단가 = 매입단가 × (1+마진율), 유통 25%·엔드유저 50%)</div>`;
   wrap.innerHTML = html;
 }
 function renderDashboard(){
